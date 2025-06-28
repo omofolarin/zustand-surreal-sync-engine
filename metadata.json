@@ -1,0 +1,5 @@
+{
+  "name": "Zustand SurrealDB Sync Todo App",
+  "description": "A sophisticated To-Do list application demonstrating real-time, offline-first synchronization between a Zustand state store and an in-browser SurrealDB instance. Features include live updates, conflict resolution, and a polished UI built with React and Tailwind CSS.",
+  "requestFramePermissions": []
+}
