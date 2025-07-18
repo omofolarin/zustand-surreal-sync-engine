@@ -1,4 +1,4 @@
-import { create, type StateCreator, type StoreApi } from 'zustand';
+import { type StateCreator, type StoreApi } from 'zustand';
 import type { SyncConfig, TableConfig, ChangeRecord } from '../types';
 import type { SurrealDBAdapter } from '../services/surrealdb';
 import { StringRecordId } from 'surrealdb';

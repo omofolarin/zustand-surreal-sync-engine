@@ -2,8 +2,10 @@ import { create } from 'zustand';
 import { ZustandSurrealSyncEngine } from './syncEngine';
 import { SurrealDBAdapter } from '../services/surrealdb';
 import type { Todo, TodoState, SyncConfig } from '../types';
+import { FieldBuilder, IndexBuilder } from './schemaUtils';
 
 
+// Enhanced Todo Schema using FieldBuilder and IndexBuilder utilities
 export const syncConfig: SyncConfig = {
   dbName: 'todoapp-indexeddb',
   namespace: 'test',
@@ -14,9 +16,71 @@ export const syncConfig: SyncConfig = {
       primaryKey: 'id',
       syncEnabled: true,
       schema: {
-        text: 'string',
-        completed: 'bool',
-        createdAt: 'datetime'
+        fields: {
+          // Required text field with length validation
+          text: FieldBuilder.string({
+            required: true,
+            minLength: 1,
+            maxLength: 500
+          }),
+          
+          // Boolean field with default value
+          completed: FieldBuilder.boolean(false),
+          
+          // Auto-timestamp for creation
+          createdAt: FieldBuilder.datetime({
+            required: true,
+            autoNowAdd: true
+          }),
+          
+          // Auto-timestamp for updates
+          updatedAt: FieldBuilder.datetime({
+            autoNow: true
+          }),
+          
+          // Priority with range validation
+          priority: FieldBuilder.number({
+            integer: true,
+            min: 0,
+            max: 5,
+            default: 0
+          }),
+          
+          // Tags array with max length
+          tags: FieldBuilder.array('string', {
+            maxLength: 10,
+            default: []
+          }),
+          
+          // Optional due date
+          dueDate: FieldBuilder.datetime({
+            required: false
+          }),
+          
+          // Optional category reference
+          category: FieldBuilder.record('categories', false),
+          
+          // Metadata object for extensibility
+          metadata: FieldBuilder.object({
+            estimatedMinutes: 0,
+            difficulty: 'easy',
+            notes: ''
+          })
+        },
+        indexes: [
+          IndexBuilder.composite('idx_completed', ['completed']),
+          IndexBuilder.composite('idx_created_at', ['createdAt']),
+          IndexBuilder.composite('idx_priority_completed', ['priority', 'completed']),
+          IndexBuilder.composite('idx_due_date', ['dueDate']),
+          IndexBuilder.composite('idx_category_completed', ['category', 'completed']),
+          IndexBuilder.fulltext('idx_text_search', ['text'])
+        ],
+        permissions: {
+          select: 'true', // Allow all reads for now
+          create: 'true', // Allow all creates
+          update: 'true', // Allow all updates
+          delete: 'true'  // Allow all deletes
+        }
       }
     }
   },

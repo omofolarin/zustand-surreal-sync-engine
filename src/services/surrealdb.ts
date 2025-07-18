@@ -1,6 +1,7 @@
 import { Surreal, type Uuid, type LiveHandler, StringRecordId } from 'surrealdb';
 import { surrealdbWasmEngines } from '@surrealdb/wasm';
-import type { SyncConfig, TableConfig } from '../types';
+import type { SyncConfig, TableConfig, TableSchema, FieldDefinition, IndexDefinition } from '../types';
+import { upgradeTableConfig, validateSchema } from '../store/schemaUtils';
 
 export class SurrealDBAdapter {
   private db: Surreal;
@@ -54,24 +55,146 @@ export class SurrealDBAdapter {
   private async initializeTable(tableName: string, config: TableConfig): Promise<void> {
     const info = await this.db.query(`INFO FOR TABLE ${tableName}`);
     console.log({ info, schema: config.schema });
-    let query = `
-      DEFINE TABLE IF NOT EXISTS ${tableName} SCHEMAFULL;
+    
+    // Upgrade legacy schema if needed
+    const upgradedConfig = upgradeTableConfig(config);
+    const schema = upgradedConfig.schema as TableSchema;
+    
+    // Validate the schema
+    const validation = validateSchema(schema);
+    if (!validation.valid) {
+      console.warn(`Schema validation warnings for table ${tableName}:`, validation.errors);
+      // Continue with initialization but log warnings
+    }
+    
+    let query = `DEFINE TABLE IF NOT EXISTS ${tableName} SCHEMAFULL;`;
+    
+    // Add system fields
+    query += `
       DEFINE FIELD IF NOT EXISTS lastModified ON TABLE ${tableName} TYPE datetime DEFAULT time::now();
       DEFINE FIELD IF NOT EXISTS version ON TABLE ${tableName} TYPE number DEFAULT 1;
       DEFINE FIELD IF NOT EXISTS source ON TABLE ${tableName} TYPE string DEFAULT 'surrealdb';
     `;
 
-    for (const [key, value] of Object.entries(config.schema)) {
-      query += `DEFINE FIELD IF NOT EXISTS ${key} ON TABLE ${tableName} TYPE ${value};`;
-    }
-
+    // Build enhanced schema query
+    query += this.buildEnhancedSchemaQuery(tableName, schema);
 
     try {
       await this.db.query(query);
-      console.log(`Table ${tableName} initialized/checked.`);
+      console.log(`Table ${tableName} initialized/checked with enhanced schema.`);
     } catch (error) {
       console.error(`Error initializing table ${tableName}:`, error);
+      throw error;
     }
+  }
+
+  private isEnhancedSchema(schema: any): schema is TableSchema {
+    return schema && typeof schema === 'object' && 'fields' in schema;
+  }
+
+  private buildEnhancedSchemaQuery(tableName: string, schema: TableSchema): string {
+    let query = '';
+
+    // Define fields with constraints
+    for (const [fieldName, fieldDef] of Object.entries(schema.fields)) {
+      query += this.buildFieldDefinition(tableName, fieldName, fieldDef);
+    }
+
+    // Define indexes
+    if (schema.indexes) {
+      for (const index of schema.indexes) {
+        query += this.buildIndexDefinition(tableName, index);
+      }
+    }
+
+    // Define table permissions
+    if (schema.permissions) {
+      query += this.buildPermissionsDefinition(tableName, schema.permissions);
+    }
+
+    // Define events
+    if (schema.events) {
+      for (const [eventType, eventFunction] of Object.entries(schema.events)) {
+        query += `DEFINE EVENT IF NOT EXISTS ${eventType} ON TABLE ${tableName} WHEN $event = "${eventType}" THEN ${eventFunction};`;
+      }
+    }
+
+    return query;
+  }
+
+  private buildFieldDefinition(tableName: string, fieldName: string, fieldDef: FieldDefinition): string {
+    let fieldQuery = `DEFINE FIELD IF NOT EXISTS ${fieldName} ON TABLE ${tableName} TYPE ${fieldDef.type}`;
+
+    if (fieldDef.constraints) {
+      const constraints = fieldDef.constraints;
+
+      // Handle default value
+      if (constraints.default !== undefined) {
+        if (typeof constraints.default === 'string') {
+          fieldQuery += ` DEFAULT "${constraints.default}"`;
+        } else if (typeof constraints.default === 'number' || typeof constraints.default === 'boolean') {
+          fieldQuery += ` DEFAULT ${constraints.default}`;
+        } else {
+          fieldQuery += ` DEFAULT ${JSON.stringify(constraints.default)}`;
+        }
+      }
+
+      // Handle value expression
+      if (constraints.value) {
+        fieldQuery += ` VALUE ${constraints.value}`;
+      }
+
+      // Handle assertions
+      if (constraints.assert) {
+        fieldQuery += ` ASSERT ${constraints.assert}`;
+      }
+
+      // Handle field permissions
+      if (constraints.permissions) {
+        const perms = constraints.permissions;
+        if (perms.select) fieldQuery += ` PERMISSIONS FOR select WHERE ${perms.select}`;
+        if (perms.create) fieldQuery += ` PERMISSIONS FOR create WHERE ${perms.create}`;
+        if (perms.update) fieldQuery += ` PERMISSIONS FOR update WHERE ${perms.update}`;
+        if (perms.delete) fieldQuery += ` PERMISSIONS FOR delete WHERE ${perms.delete}`;
+      }
+    }
+
+    fieldQuery += ';';
+    return fieldQuery;
+  }
+
+  private buildIndexDefinition(tableName: string, index: IndexDefinition): string {
+    let indexQuery = `DEFINE INDEX IF NOT EXISTS ${index.name} ON TABLE ${tableName} COLUMNS ${index.fields.join(', ')}`;
+    
+    if (index.unique) {
+      indexQuery += ' UNIQUE';
+    }
+    
+    if (index.type && index.type !== 'btree') {
+      indexQuery += ` ${index.type.toUpperCase()}`;
+    }
+    
+    indexQuery += ';';
+    return indexQuery;
+  }
+
+  private buildPermissionsDefinition(tableName: string, permissions: NonNullable<TableSchema['permissions']>): string {
+    let permQuery = '';
+    
+    if (permissions.select) {
+      permQuery += `DEFINE PERMISSIONS FOR select ON TABLE ${tableName} WHERE ${permissions.select};`;
+    }
+    if (permissions.create) {
+      permQuery += `DEFINE PERMISSIONS FOR create ON TABLE ${tableName} WHERE ${permissions.create};`;
+    }
+    if (permissions.update) {
+      permQuery += `DEFINE PERMISSIONS FOR update ON TABLE ${tableName} WHERE ${permissions.update};`;
+    }
+    if (permissions.delete) {
+      permQuery += `DEFINE PERMISSIONS FOR delete ON TABLE ${tableName} WHERE ${permissions.delete};`;
+    }
+    
+    return permQuery;
   }
 
   async create(table: string, data: any): Promise<any> {

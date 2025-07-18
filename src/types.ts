@@ -10,11 +10,53 @@ export interface SyncConfig {
   retryAttempts?: number;
 }
 
+export interface FieldConstraints {
+  unique?: boolean;
+  nullable?: boolean;
+  default?: any;
+  assert?: string; // SurrealDB assertion expression
+  value?: string;  // SurrealDB value expression
+  permissions?: {
+    select?: string;
+    create?: string;
+    update?: string;
+    delete?: string;
+  };
+}
+
+export interface FieldDefinition {
+  type: string;
+  constraints?: FieldConstraints;
+}
+
+export interface IndexDefinition {
+  name: string;
+  fields: string[];
+  unique?: boolean;
+  type?: 'btree' | 'hash' | 'fulltext';
+}
+
+export interface TableSchema {
+  fields: Record<string, FieldDefinition>;
+  indexes?: IndexDefinition[];
+  permissions?: {
+    select?: string;
+    create?: string;
+    update?: string;
+    delete?: string;
+  };
+  events?: {
+    [eventType: string]: string; // Event type -> SurrealQL function
+  };
+}
+
 export interface TableConfig {
   zustandPath: string;
   primaryKey: string;
-  schema: Record<string, any>;
+  schema: TableSchema;
   syncEnabled?: boolean;
+  // Legacy support for simple schema format
+  legacySchema?: Record<string, any>;
 }
 
 export interface SyncMetadata {
@@ -39,6 +81,16 @@ export interface Todo {
   text: string;
   completed: boolean;
   createdAt: Date;
+  updatedAt?: Date;
+  priority?: number;
+  tags?: string[];
+  dueDate?: Date;
+  category?: StringRecordId;
+  metadata?: {
+    estimatedMinutes: number;
+    difficulty: 'easy' | 'medium' | 'hard';
+    notes: string;
+  };
   lastModified?: Date;
   version?: number;
   source?: 'zustand' | 'surrealdb';
