@@ -1,8 +1,8 @@
 import { create } from 'zustand';
-import { ZustandSurrealSyncEngine } from './syncEngine';
-import { SurrealDBAdapter } from '../services/surrealdb';
+import { ZustandSurrealSyncEngine } from '../core/SyncEngine';
+import { SurrealDBAdapter } from '../adapters/SurrealDBAdapter';
 import type { Todo, TodoState, SyncConfig } from '../types';
-import { FieldBuilder, IndexBuilder } from './schemaUtils';
+import { FieldBuilder, IndexBuilder } from '../schema/builders';
 
 
 // Enhanced Todo Schema using FieldBuilder and IndexBuilder utilities

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useTodoStore, initializeSync, shutdownSync, syncEngine, syncConfig } from './store/todoStore';
-import { SurrealDBAdapter } from './services/surrealdb';
+import { SurrealDBAdapter } from './adapters/SurrealDBAdapter';
 import type { Todo } from './types';
 
 const LoadingSpinner: React.FC = () => (

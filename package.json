@@ -1,28 +1,91 @@
 {
-  "name": "zustand-surrealdb-sync-todo-app",
-  "private": true,
-  "version": "0.0.0",
+  "name": "@sync-engine/core",
+  "version": "1.0.0",
+  "description": "A comprehensive Bun library for robust synchronization between client-side state management and SurrealDB with real-time collaboration features",
   "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    },
+    "./adapters": {
+      "import": "./dist/adapters/index.js",
+      "require": "./dist/adapters/index.cjs",
+      "types": "./dist/adapters/index.d.ts"
+    },
+    "./middleware": {
+      "import": "./dist/middleware/index.js",
+      "require": "./dist/middleware/index.cjs",
+      "types": "./dist/middleware/index.d.ts"
+    },
+    "./schema": {
+      "import": "./dist/schema/index.js",
+      "require": "./dist/schema/index.cjs",
+      "types": "./dist/schema/index.d.ts"
+    },
+    "./features": {
+      "import": "./dist/features/index.js",
+      "require": "./dist/features/index.cjs",
+      "types": "./dist/features/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+    "build": "bun run build:clean && bun run build:types && bun run build:bundle",
+    "build:clean": "rm -rf dist",
+    "build:types": "tsc --emitDeclarationOnly --outDir dist",
+    "build:bundle": "bun run ./build.ts",
+    "build:adapters": "bun build src/adapters/index.ts --outdir dist/adapters --target bun --format esm --outfile index.js && bun build src/adapters/index.ts --outdir dist/adapters --target node --format cjs --outfile index.cjs",
+    "build:middleware": "bun build src/middleware/index.ts --outdir dist/middleware --target bun --format esm --outfile index.js && bun build src/middleware/index.ts --outdir dist/middleware --target node --format cjs --outfile index.cjs",
+    "build:schema": "bun build src/schema/index.ts --outdir dist/schema --target bun --format esm --outfile index.js && bun build src/schema/index.ts --outdir dist/schema --target node --format cjs --outfile index.cjs",
+    "build:features": "bun build src/features/index.ts --outdir dist/features --target bun --format esm --outfile index.js && bun build src/features/index.ts --outdir dist/features --target node --format cjs --outfile index.cjs",
+    "dev": "bun --watch src/index.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "bun run build"
+  },
+  "keywords": [
+    "sync",
+    "surrealdb",
+    "zustand",
+    "real-time",
+    "collaboration",
+    "offline-first",
+    "bun",
+    "typescript"
+  ],
+  "author": "Sync Engine Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sync-engine/core.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sync-engine/core/issues"
+  },
+  "homepage": "https://github.com/sync-engine/core#readme",
+  "peerDependencies": {
+    "zustand": "^4.5.0",
+    "surrealdb": "^1.3.0"
   },
   "dependencies": {
-    "@surrealdb/wasm": "^1.1.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "surrealdb": "^1.3.2",
-    "zustand": "^4.5.2"
+    "@surrealdb/wasm": "^1.1.0"
   },
   "devDependencies": {
-    "@types/react": "^18.2.66",
-    "@types/react-dom": "^18.2.22",
-    "@vitejs/plugin-react": "^4.2.1",
-    "autoprefixer": "^10.4.19",
-    "postcss": "^8.4.38",
-    "tailwindcss": "^3.4.3",
+    "@types/bun": "latest",
     "typescript": "^5.2.2",
-    "vite": "^5.2.0"
+    "zustand": "^4.5.2",
+    "surrealdb": "^1.3.2"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
   }
 }

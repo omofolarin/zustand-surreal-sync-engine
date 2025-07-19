@@ -1,9 +1,10 @@
 import { Surreal, type Uuid, type LiveHandler, StringRecordId } from 'surrealdb';
 import { surrealdbWasmEngines } from '@surrealdb/wasm';
 import type { SyncConfig, TableConfig, TableSchema, FieldDefinition, IndexDefinition } from '../types';
-import { upgradeTableConfig, validateSchema } from '../store/schemaUtils';
+import { upgradeTableConfig, validateSchema } from '../schema/utils';
+import type { DatabaseAdapter, LiveQueryCallback } from '../core/types';
 
-export class SurrealDBAdapter {
+export class SurrealDBAdapter implements DatabaseAdapter {
   private db: Surreal;
   private connected = false;
   private liveQueries = new Map<string, Uuid>();
@@ -17,7 +18,7 @@ export class SurrealDBAdapter {
 
   async connect(): Promise<void> {
     try {
-      await this.db.connect(`indxdb://${this.config.dbName || 'todo-app-db'}`);
+      await this.db.connect(`indxdb://${this.config.dbName || 'sync-engine-db'}`);
       await this.db.use({
         namespace: this.config.namespace,
         database: this.config.database,
@@ -87,8 +88,6 @@ export class SurrealDBAdapter {
       throw error;
     }
   }
-
-// Removed unused method
 
   private buildEnhancedSchemaQuery(tableName: string, schema: TableSchema): string {
     let query = '';
@@ -195,7 +194,7 @@ export class SurrealDBAdapter {
     return permQuery;
   }
 
-  async create(table: string, data: any): Promise<any> {
+  async create<T = any>(table: string, data: Partial<T>): Promise<T> {
     const record = {
       ...data,
       lastModified: new Date(),
@@ -208,7 +207,7 @@ export class SurrealDBAdapter {
     return Array.isArray(result) ? result[0] : result;
   }
 
-  async update(id: StringRecordId, data: any): Promise<any> {
+  async update<T = any>(id: StringRecordId, data: Partial<T>): Promise<T> {
     console.log(`Updating record ${id}`);
     const existingResult = await this.db.select(id);
     const existing: any = Array.isArray(existingResult) ? existingResult[0] : existingResult;
@@ -225,20 +224,19 @@ export class SurrealDBAdapter {
   }
 
   async delete(id: StringRecordId): Promise<void> {
-
     await this.db.delete(id);
     console.log(`Deleted record ${id}`);
-
   }
 
-  async select(table: string, id?: StringRecordId): Promise<any> {
+  async select<T = any>(table: string, id?: StringRecordId): Promise<T | T[]> {
     if (id) {
-      return await this.db.select(id);
+      const result = await this.db.select(id);
+      return Array.isArray(result) ? result[0] : result;
     }
     return await this.db.select(table);
   }
 
-  async startLiveQuery(table: string, callback: (notification: { action: string, result: any }) => void): Promise<void> {
+  async startLiveQuery(table: string, callback: LiveQueryCallback): Promise<void> {
     if (this.liveQueries.has(table)) {
       try {
         await this.db.kill(this.liveQueries.get(table)!);
@@ -254,7 +252,14 @@ export class SurrealDBAdapter {
         return;
       }
 
-      callback({ action, result });
+      callback({ 
+        action: action.toUpperCase() as 'CREATE' | 'UPDATE' | 'DELETE',
+        result,
+        metadata: {
+          timestamp: Date.now(),
+          source: 'surrealdb'
+        }
+      });
     };
 
     const queryId = await this.db.live(table, liveHandler);
@@ -264,5 +269,33 @@ export class SurrealDBAdapter {
 
   isConnected(): boolean {
     return this.connected;
+  }
+
+  async stopLiveQuery(table: string): Promise<void> {
+    const queryId = this.liveQueries.get(table);
+    if (queryId) {
+      try {
+        await this.db.kill(queryId);
+        this.liveQueries.delete(table);
+        console.log(`Live query stopped for table ${table}`);
+      } catch (error) {
+        console.warn(`Failed to stop live query for ${table}:`, error);
+      }
+    }
+  }
+
+  async healthCheck(): Promise<boolean> {
+    try {
+      if (!this.connected) {
+        return false;
+      }
+      
+      // Perform a simple query to check database health
+      await this.db.query('SELECT 1');
+      return true;
+    } catch (error) {
+      console.error('Database health check failed:', error);
+      return false;
+    }
   }
 }

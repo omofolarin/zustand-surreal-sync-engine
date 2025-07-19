@@ -1,0 +1,19 @@
+[install]
+# Configure Bun package manager
+cache = true
+exact = false
+production = false
+
+[install.scopes]
+# Scoped package configuration
+
+[test]
+# Test configuration
+preload = ["./tests/setup.ts"]
+
+[build]
+# Build configuration
+target = "bun"
+format = "esm"
+sourcemap = "external"
+minify = false
